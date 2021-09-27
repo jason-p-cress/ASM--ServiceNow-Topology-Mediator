@@ -1,0 +1,7 @@
+readCisFromFile=1
+readRelationshipsFromFile=0
+saveCisToFile=0
+saveRelationshipsToFile=1
+creatFileObserverFiles=1
+sendToRest=0
+restJobId=ServiceNowRest

@@ -1,0 +1,12 @@
+#!/bin/bash
+instance=<instance>
+username=<username>
+password=<password>
+#sysid=a22be6f1dbfde7007c7e54f948961944
+sysid=00094c13db695b009787e525ca9619d3
+fieldnames=sys_id,name,manufacturer,sys_class_name
+base="https://$instance.service-now.com/api/now/table/cmdb_ci/$sysid"
+base="https://$instance.service-now.com/api/now/table/cmdb_ci/"
+parms="sysparm_fields=$fieldnames&sysparm_display_value=all"
+url="$base?$parms"
+curl $url --request GET --user "$username:$password"

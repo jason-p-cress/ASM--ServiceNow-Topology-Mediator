@@ -1,0 +1,12 @@
+#list of ci's to bring in to ASM
+cmdb_ci_cluster
+cmdb_ci_cluster_vip
+cmdb_ci_cluster_resource
+cmdb_ci_cluster_node
+cmdb_ci_vm
+cmdb_ci_server
+cmdb_ci_ip_router
+cmdb_ci_ip_switch
+cmdb_ci_appl
+cmdb_ci_db_instance
+cmdb_ci_service
