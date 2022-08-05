@@ -619,7 +619,7 @@ def getCiData(runType, ciType):
             asmObject["entityTypes"] = [ entityTypeMappingDict[ciType] ]
          else:
             print "no entitytype mapping for ciType: " + ciType + ", defaulting to 'server'"
-            asmObject["entityTypes"] = "server"
+            asmObject["entityTypes"] = [ "server" ]
 
       # Identify any fields that would be useful to use as matchTokens...
 
