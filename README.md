@@ -1,11 +1,13 @@
-ServiceNow topology mediator for Agile Service Manager --
+ServiceNow topology mediator for Agile Service Manager
+======================================================
 
 This script is an example of how to bring topology data from the ServiceNow CMDB into a
 file that can be ingested by the ASM file observer. It creates CI objsects from the
 specified CI classes, as well as relevant relationship information for all CIs of 
 interest.
 
-To use:
+Configuring
+===========
 
 1. Enter the CI classes you would like to load into the ASM topology into the file:
 
@@ -13,8 +15,13 @@ To use:
 
 2. Configure the config/snowserver.conf file with your ServiceNow server, user, and 
    password. User must have the ability to query REST and CMDB data.
-3. Execute the bin/getSNOWData.py (python2) to create the file observer files.
-4. Import the generated files (located under "file-observer-files") using the ASM file
+
+Running the mediator
+====================
+
+1. Execute the bin/getSNOWData.py (python2) to create the file observer files.
+
+2. Import the generated files (located under "file-observer-files") using the ASM file
    observer. Note that two files are created - one for edges and one for vertices. The
    vertices file MUST BE LOADED before the edges file. Alternatively, you can append
    the edges file to the vertices file as such:
@@ -23,7 +30,8 @@ To use:
 
    and load it all in one shot.
 
-Some items to note:
+Some items to note
+==================
 
 -- ServiceNow may throttle queries that are performed against its REST API. I have
    done a fair amount of testing with this to get a balance that is both performant,
@@ -60,7 +68,7 @@ Some items to note:
 -- A tip for moving the resulting file observer file to a file observer container:
    tar.gz the files before copying to the file observer container. It will save you
    a metric ton of time copying the file to the container. You can then untar.gz
-   at the container. 
+   from within the container. 
 
 -- There is a lot of debug output sent to stdout. Sorry about that. Feel free to:
 

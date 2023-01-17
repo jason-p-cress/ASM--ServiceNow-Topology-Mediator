@@ -38,20 +38,9 @@ def validateJson(jsonData):
     return True
 
 
-##############
-#
-# Simple function to verify if a dictionary key exists
-#
-######################################################
-
 def keyExists(d, myKey): 
    return d.has_key(myKey) or any(myhaskey(dd) for dd in d.values() if isinstance(dd, dict))
 
-##############
-#
-# Function to load mediator properties
-#
-######################################
 
 def loadProperties(filepath, sep='=', comment_char='#'):
     """
@@ -67,13 +56,6 @@ def loadProperties(filepath, sep='=', comment_char='#'):
                 value = sep.join(key_value[1:]).strip().strip('"') 
                 props[key] = value 
     return props
-
-
-##############
-#
-# Function to verify ASM is running
-#
-###################################
 
 def verifyAsmHealth():
 
@@ -101,22 +83,17 @@ def verifyAsmHealth():
          return response.getcode()
 
    except IOError, e:
-      print 'Failed to open "%s".' % requestUrl
+      print('Failed to open "%s".' % requestUrl)
       if hasattr(e, 'code'):
-         print 'We failed with error code - %s.' % e.code
+         print('We failed with error code - %s.' % e.code)
       elif hasattr(e, 'reason'):
-         print "The error object has the following 'reason' attribute :"
+         print("The error object has the following 'reason' attribute :")
          print e.reason
          print "This usually means the server doesn't exist,",
          print "is down, or we don't have an internet connection."
       return e.code
 
 
-##############
-#
-# Function to load ServiceNow classes of interest
-#
-#################################################
 
 def loadClassList(filepath, comment_char='#'):
 
@@ -255,10 +232,15 @@ def loadAsmServer(filepath, sep=",", comment_char='#'):
                   print "Unable to connect to ASM server " + asmDict["server"] + " on port " + asmDict["port"] + ", please verify server, username, password, and tenant id in " + mediatorHome + "config/asmserver.conf"
 
 def checkAsmRestListenJob(jobName):
+   
+   ######################################################################################
+   #
+   # Check to see if the ASM REST Observer listen job for this ServiceNow mediator exists
+   # Returns boolean True or False
+   #
+   ######################################################################################
 
    method = 'GET'
-   # Check to see if the ASM REST Observer listen job for this ServiceNow mediator exists....
-   # Returns boolean True or False
 
    requestUrl = 'https://' + asmServerDict["server"] + ':' + asmServerDict["port"] + '/1.0/rest-observer/jobs/' + jobName
 
@@ -457,6 +439,12 @@ def createAsmConnection(connectionDict, jobId):
 
 def getTotalRelCount():
 
+   #############################################################################################
+   #
+   # This function gets a count of the total relationships available in the service now instance
+   #
+   #############################################################################################
+
    method = 'GET'
    requestUrl = 'https://' + snowServerDict["server"] + '/api/now/stats/cmdb_rel_ci?sysparm_count=true'
    print("issuing relationship count query: " + requestUrl)
@@ -484,7 +472,7 @@ def getTotalRelCount():
 
 
    relCountResultDict = json.loads(relCountResult)
-   print("Found " + relCountResultDict["result"]["stats"]["count"])
+   print("Found " + relCountResultDict["result"]["stats"]["count"] + " total relationships in the relationship table")
    return(int(relCountResultDict["result"]["stats"]["count"]))
 
  
@@ -655,11 +643,11 @@ def getCiData(runType, ciType):
    print "there are " + str(len(ciSysIdSet)) + " items in ciSysIdSet, while there are " + str(len(ciSysIdList)) + " items in ciCysIdList..."
    return()
 
-def getCiRelationships():
+def getCiRelationships(classesOfInterest):
 
    ###################################################
    #
-   # query SNOW cmdb_rel table
+   # query SNOW cmdb_rel_ci table
    #
    ###################################################
    global readRelationshipsFromFile
@@ -712,7 +700,7 @@ def getCiRelationships():
             else:
                print "retrying query due to read failure"
   
-         requestUrl = 'https://' + snowServerDict["server"] + '/api/now/table/cmdb_rel_ci?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset)
+         requestUrl = 'https://' + snowServerDict["server"] + '/api/now/table/cmdb_rel_ci?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset) + '&sysparm_query=parent.sys_class_name%20IN%20' + classesOfInterest
          print("issuing query: " + requestUrl)
      
          for retry in [1,2,3]:
@@ -1148,8 +1136,15 @@ if __name__ == '__main__':
    if(readRelationshipsFromFile == "0"):
       totalSnowCmdbRelationships = getTotalRelCount()
 
-   getCiRelationships()
+   classRelFilter=''
+   for className in ciClassList:
+      classRelFilter = classRelFilter + className + ","
+   classesOfInterest=classRelFilter.rstrip(',')
 
+   print "Running relationship query for classes: " + classesOfInterest
+
+   getCiRelationships(classesOfInterest)
+   
    print "Relationship mediation complete. Writing edges..."   
    edges = open(mediatorHome + "/file-observer-files/edges-" + str(datetime.datetime.now()) + ".json", "w")
    for rel in relationList:
