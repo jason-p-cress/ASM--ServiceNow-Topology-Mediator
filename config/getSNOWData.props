@@ -1,7 +1,8 @@
 readCisFromFile=0
 readRelationshipsFromFile=0
-saveCisToFile=0
-saveRelationshipsToFile=0
+saveCisToFile=1
+saveRelationshipsToFile=1
 creatFileObserverFiles=1
 sendToRest=0
 restJobId=ServiceNowRest
+loggingLevel=debug

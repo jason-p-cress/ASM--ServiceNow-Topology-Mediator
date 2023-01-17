@@ -23,6 +23,50 @@ import urllib2
 import urllib
 from collections import defaultdict
 from multiprocessing import Process
+import logging
+#from datetime import datetime
+
+############################
+#
+# Function to set up logging
+#
+############################
+
+def setupLogging():
+
+   if(os.path.isdir(mediatorHome + "/log")):
+      logHome = mediatorHome + "/log/"
+
+      # Redirect stdout to log/getSNOWData.out
+
+#      print("Redirecting stdout to " + logHome + "datachannel.out")
+#      print("Redirecting stderr to " + logHome + "datachannel.err")
+#      sys.stdout = open(logHome + "datachannel.out", "w")
+#      sys.stderr = open(logHome + "datachannel.err", "w")
+      LOG_FILENAME=logHome + "getSNOWData.log"
+      now = datetime.datetime.now()
+      ts = now.strftime("%d/%m/%Y %H:%M:%S")
+      print("opening log file " + logHome + "/getSNOWData.log")
+      
+      if 'loggingLevel' in globals():
+         if loggingLevel.upper() == "INFO" or loggingLevel.upper() == "DEBUG":
+            if loggingLevel.upper() == "INFO":
+               logging.basicConfig(level=logging.INFO, filename=LOG_FILENAME, filemode="w+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+            else:
+               logging.basicConfig(level=logging.DEBUG, filename=LOG_FILENAME, filemode="w+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+         else:
+            logging.basicConfig(level=logging.INFO, filename=LOG_FILENAME, filemode="w+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+            logging.info("WARNING: Unknown loggingLevel specified in getSNOWData.props. Must be one of 'INFO' or 'DEBUG'. Defaulting to 'INFO'")
+         logging.info("ServiceNow data collection started at: " + ts + "\n")
+         print("FATAL: failed to start logging. Verify logging path available and disk space.")
+         exit()
+      else:
+         print("Logging level property 'loggingLevel' is not specified in the getSNOWData.props. Defaulting to 'INFO'")
+         logging.basicConfig(level=logging.INFO, filename=LOG_FILENAME, filemode="w+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+         logging.info("WARNING: Unknown loggingLevel specified in getSNOWData.props. Must be one of 'INFO' or 'DEBUG'. Defaulting to 'INFO'")
+   else:
+      print("FATAL: unable to find log directory at " + mediatorHome + "log")
+      sys.exit()
 
 ##############
 #
@@ -41,6 +85,11 @@ def validateJson(jsonData):
 def keyExists(d, myKey): 
    return d.has_key(myKey) or any(myhaskey(dd) for dd in d.values() if isinstance(dd, dict))
 
+#################################################
+#
+# Generic function to load properties from a file
+#
+#################################################
 
 def loadProperties(filepath, sep='=', comment_char='#'):
     """
@@ -83,20 +132,24 @@ def verifyAsmHealth():
          return response.getcode()
 
    except IOError, e:
-      print('Failed to open "%s".' % requestUrl)
+      logging.info('Failed to open "%s".' % requestUrl)
       if hasattr(e, 'code'):
-         print('We failed with error code - %s.' % e.code)
+         logging.info('We failed with error code - %s.' % e.code)
       elif hasattr(e, 'reason'):
-         print("The error object has the following 'reason' attribute :")
-         print e.reason
-         print "This usually means the server doesn't exist,",
-         print "is down, or we don't have an internet connection."
+         logging.info("The error object has the following 'reason' attribute :")
+         logging.info(e.reason)
+         logging.info("This usually means the server doesn't exist, is down, or we don't have a network connection")
       return e.code
 
 
 
 def loadClassList(filepath, comment_char='#'):
 
+   #######################################################
+   #
+   # This function reads the class list configuration file
+   #
+   #######################################################
    ciClassList = []
 
    with open(filepath, "rt") as f:
@@ -123,7 +176,7 @@ def loadSnowServer(filepath, sep=',', comment_char='#'):
          if l and not l.startswith(comment_char):
             values = l.split(sep)
             if(len(values) < 3):
-               print "Malformed server configuration entry on line number: " + str(lineNum)
+               logging.info("Malformed server configuration entry on line number: " + str(lineNum))
             else:
                snowServerDict["server"] = values[0]
                snowServerDict["user"] = values[1]
@@ -159,7 +212,7 @@ def loadEntityTypeMapping(filepath, sep=",", comment_char='#'):
          if l and not l.startswith(comment_char):
             values = l.split(sep)
             if(len(values) < 2 or len(values) > 2):
-               print "Malformed entityType map config line on line " + str(lineNum)
+               logging.info("Malformed entityType map config line on line " + str(lineNum))
             else:
                entityTypeMappingDict[values[0].replace('"', '')] = values[1].replace('"', '')
 
@@ -179,7 +232,7 @@ def loadRelationshipMapping(filepath, sep=",", comment_char='#'):
          if l and not l.startswith(comment_char):
             values = l.split(sep)
             if(len(values) < 3 or len(values) > 3):
-               print "Malformed mapping config line on line " + str(lineNum)
+               logging.info("Malformed mapping config line on line " + str(lineNum))
             else:
                relationshipMappingDict[values[0].replace('"', '')] = values[2].replace('"', '')
 
@@ -219,7 +272,7 @@ def loadAsmServer(filepath, sep=",", comment_char='#'):
          if l and not l.startswith(comment_char):
             values = l.split(sep)
             if(len(values) < 5):
-               print "Malformed ASM server config line on line " + str(lineNum)
+               logging.info("Malformed ASM server config line on line " + str(lineNum))
             else:
                asmDict["server"] = values[0]
                asmDict["port"] = values[1]
@@ -229,7 +282,7 @@ def loadAsmServer(filepath, sep=",", comment_char='#'):
                if(verifyAsmConnectivity(asmDict)):
                   return(asmDict)
                else:
-                  print "Unable to connect to ASM server " + asmDict["server"] + " on port " + asmDict["port"] + ", please verify server, username, password, and tenant id in " + mediatorHome + "config/asmserver.conf"
+                  logging.info("Unable to connect to ASM server " + asmDict["server"] + " on port " + asmDict["port"] + ", please verify server, username, password, and tenant id in " + mediatorHome + "config/asmserver.conf")
 
 def checkAsmRestListenJob(jobName):
    
@@ -259,14 +312,13 @@ def checkAsmRestListenJob(jobName):
       return 0
 
    except IOError, e:
-      print 'Failed to open "%s".' % requestUrl
+      logging.info('Failed to open "%s".' % requestUrl)
       if hasattr(e, 'code'):
-         print 'We failed with error code - %s.' % e.code
+         logging.info('We failed with error code - %s.' % e.code)
       elif hasattr(e, 'reason'):
-         print "The error object has the following 'reason' attribute :"
-         print e.reason
-         print "This usually means the server doesn't exist,",
-         print "is down, or we don't have an internet connection."
+         logging.info("The error object has the following 'reason' attribute :")
+         logging.info(e.reason)
+         logging.info("This usually means the server doesn't exist, is down, or we don't have a network connection")
       return e.code
 
 def createAsmRestListenJob(jobName):
@@ -295,7 +347,7 @@ def manageAsmRestListenJob(jobName, action):
       method = "DELETE"
       requestUrl = 'https://' + asmServerDict["server"] + ':' + asmServerDict["port"] + '/1.0/rest-observer/jobs/' + jobName
    else:
-      print "unknown action for manageAsmRestListenJob function"
+      logging.info("unknown action for manageAsmRestListenJob function")
       return 0
 
    #requestUrl = 'https://' + asmServerDict["server"] + ':' + asmServerDict["port"] + '/1.0/rest-observer/jobs/listen'
@@ -319,14 +371,13 @@ def manageAsmRestListenJob(jobName, action):
       return 0
 
    except IOError, e:
-      print 'Failed to open "%s".' % requestUrl
+      logging.info('Failed to open "%s".' % requestUrl)
       if hasattr(e, 'code'):
-         print 'We failed with error code - %s.' % e.code
+         logging.info('We failed with error code - %s.' % e.code)
       elif hasattr(e, 'reason'):
-         print "The error object has the following 'reason' attribute :"
-         print e.reason
-         print "This usually means the server doesn't exist,",
-         print "is down, or we don't have an internet connection."
+         logging.info("The error object has the following 'reason' attribute :")
+         logging.info(e.reason)
+         logging.info("This usually means the server doesn't exist, is down, or we don't have a network connection")
       return e.code
 
 def createFileResource(resourceDict):
@@ -365,11 +416,11 @@ def createAsmResource(resourceDict, jobId):
 
    requestUrl = 'https://' + asmServerDict["server"] + ':' + asmServerDict["port"] + '/1.0/rest-observer/rest/resources'
 
-   #print "SENDING CI TO REST, URL IS: " + requestUrl
+   logging.debug("SENDING CI TO REST, URL IS: " + requestUrl)
    authHeader = 'Basic ' + base64.b64encode(asmServerDict["user"] + ":" + asmServerDict["password"])
-   #print "auth header is: " + str(authHeader)
+   logging.debug("auth header is: " + str(authHeader))
    jsonResource = json.dumps(resourceDict)
-   #print "creating the following resource in ASM: " + jsonResource
+   logging.debug("creating the following resource in ASM: " + jsonResource)
 
    try:
       request = urllib2.Request(requestUrl, jsonResource)
@@ -437,7 +488,7 @@ def createAsmConnection(connectionDict, jobId):
          print "is down, or we don't have an internet connection."
       return False
 
-def getTotalRelCount():
+def getTotalRelCount(classesOfInterest):
 
    #############################################################################################
    #
@@ -446,8 +497,8 @@ def getTotalRelCount():
    #############################################################################################
 
    method = 'GET'
-   requestUrl = 'https://' + snowServerDict["server"] + '/api/now/stats/cmdb_rel_ci?sysparm_count=true'
-   print("issuing relationship count query: " + requestUrl)
+   requestUrl = 'https://' + snowServerDict["server"] + '/api/now/stats/cmdb_rel_ci?sysparm_count=true&sysparm_query=parent.sys_class_name%20IN%20' + classesOfInterest
+   logging.debug("issuing relationship count query: " + requestUrl)
    authHeader = 'Basic ' + base64.b64encode(snowServerDict["user"] + ":" + snowServerDict["password"])
      
    try:
@@ -469,10 +520,11 @@ def getTotalRelCount():
          print e.reason
          print "This usually means the server doesn't exist,",
          print "is down, or we don't have an internet connection."
+      return False
 
 
    relCountResultDict = json.loads(relCountResult)
-   print("Found " + relCountResultDict["result"]["stats"]["count"] + " total relationships in the relationship table")
+   logging.info("Found " + relCountResultDict["result"]["stats"]["count"] + " total relationships in the relationship table")
    return(int(relCountResultDict["result"]["stats"]["count"]))
 
  
@@ -503,7 +555,7 @@ def getCiData(runType, ciType):
          gc.collect()
          readFromRest = 0
       else:
-         print "NOTE: read from file selected, yet file for ciType " + ciType + " does not exist. Reading from REST API."
+         logging.info("NOTE: read from file requested, yet file for ciType " + ciType + " does not exist. Reading from REST API.")
          readFromRest = 1 
    else:
       readFromRest = 1
@@ -521,7 +573,7 @@ def getCiData(runType, ciType):
          # https://my.service-now.com/api/now/table/incident?sysparm_query=sys_created_on>javascript:gs.dateGenerate('2015-01-01','23:59:59')
 
          requestUrl = 'https://' + snowServerDict["server"] + '/api/now/table/' + ciType + '?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset)
-         print 'issuing query: https://' + snowServerDict["server"] + '/api/now/table/' + ciType + '?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset)
+         logging.info('issuing query: https://' + snowServerDict["server"] + '/api/now/table/' + ciType + '?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset))
      
          try:
             request = urllib2.Request(requestUrl)
@@ -543,8 +595,9 @@ def getCiData(runType, ciType):
                print "This usually means the server doesn't exist,",
                print "is down, or we don't have an internet connection."
             return False
+
       
-         #print "Result is: " + str(ciDataResult)
+         logging.debug("Result is: " + str(ciDataResult))
          if(validateJson(ciDataResult)):
             ciEntries = json.loads(ciDataResult)
             for ci in ciEntries["result"]:
@@ -559,16 +612,17 @@ def getCiData(runType, ciType):
                offset = offset + limit
                isMore = 1
          else:
-            print "invalid JSON returned. We got:"
-            print ciDataResult
+            logging.info("invalid JSON returned. We got:")
+            logging.info(ciDataResult)
+            logging.info("Unable to continue")
             exit()
       
-         print str(numCi) + " items in the cmdb ci table"
+         logging.info(str(numCi) + " items in the cmdb ci table")
 
       writeToFile = 1 
 
    if(writeToFile):
-      print "writing " + str(len(readCiEntries)) + " ci items to file"
+      logging.info("writing " + str(len(readCiEntries)) + " ci items to file")
       text_file = open(mediatorHome + "/log/" + ciType + ".json", "w")
       text_file.write(json.dumps(readCiEntries))
       text_file.close()
@@ -606,7 +660,7 @@ def getCiData(runType, ciType):
          if(ciType in entityTypeMappingDict):
             asmObject["entityTypes"] = [ entityTypeMappingDict[ciType] ]
          else:
-            print "no entitytype mapping for ciType: " + ciType + ", defaulting to 'server'"
+            logging.debug("no entitytype mapping for ciType: " + ciType + ", defaulting to 'server'")
             asmObject["entityTypes"] = [ "server" ]
 
       # Identify any fields that would be useful to use as matchTokens...
@@ -626,9 +680,9 @@ def getCiData(runType, ciType):
       if asmObject.has_key("host_name"):
          if(asmObject["host_name"]):
             asmObject["matchTokens"].append(asmObject["host_name"]) 
-            #print "changing name of ci object with name " + asmObject["name"] + " to the hostname: " + asmObject["host_name"]
+            #logging.debug("changing name of ci object with name " + asmObject["name"] + " to the hostname: " + asmObject["host_name"])
             asmObject["name"] = asmObject["host_name"]
-            #print "asm object with name: " + asmObject["name"] + " should have a matchToken that matches."
+            #logging.debug("asm object with name: " + asmObject["name"] + " should have a matchToken that matches.")
          
 
 
@@ -636,11 +690,11 @@ def getCiData(runType, ciType):
       ciSysIdList.append(asmObject["sys_id"])
 
 
-   print str(len(readCiEntries)) + " objects of type " + ciType + " found"
+   logging.info(str(len(readCiEntries)) + " objects of type " + ciType + " found")
    del readCiEntries
    gc.collect()
    ciSysIdSet = set(ciSysIdList) # convert our ciSysIdList to a set for faster evaluation
-   print "there are " + str(len(ciSysIdSet)) + " items in ciSysIdSet, while there are " + str(len(ciSysIdList)) + " items in ciCysIdList..."
+   logging.info("there are " + str(len(ciSysIdSet)) + " items in ciSysIdSet, while there are " + str(len(ciSysIdList)) + " items in ciCysIdList...")
    return()
 
 def getCiRelationships(classesOfInterest):
@@ -660,24 +714,24 @@ def getCiRelationships(classesOfInterest):
 
    if(readRelationshipsFromFile == "1"):
       writeToFile = 0
-      print "Loading relationships from file rather than ServiceNow REST interface..."
+      logging.info("Loading relationships from file rather than ServiceNow REST interface...")
       if(os.path.isfile(mediatorHome  + "/log/ciRelationships.json")):
          with open(mediatorHome + "/log/ciRelationships.json") as text_file:
             for relResult in text_file:
                #print(str(relResult))
                relEntries = json.loads(relResult)
-               print "JPCLOG: FOUND " + str(len(relEntries["result"])) + " relationships for evaluation in this round of load."
+               logging.info("FOUND " + str(len(relEntries["result"])) + " relationships for evaluation in this round of load.")
                totalRelationships = totalRelationships + len(relEntries["result"])
                for rel in relEntries["result"]:
                   evaluateRelationship(rel)
          text_file.close()
-         print "READ COMPLETE. Evaluated " + str(totalRelationships) + " relationships for relevance."
+         logging.info("READ COMPLETE. Evaluated " + str(totalRelationships) + " relationships for relevance.")
          readFromRest = 0
       else:
-         print "NOTE: read from file selected, yet file for relationships does not exist. Obtaining relationships from REST API"
+         logging.info("NOTE: read from file selected, yet file for relationships does not exist. Obtaining relationships from REST API")
          readFromRest = 1
    else:
-      print "reading relationships from ServiceNow REST API"
+      logging.info("reading relationships from ServiceNow REST API")
       readFromRest = 1
   
    if(readFromRest == 1):  
@@ -695,13 +749,13 @@ def getCiRelationships(classesOfInterest):
  
          if(retryQuery > 0):
             if(retryQuery == 4):
-               print("FATAL: Query at position: " + offset + " has failed 4 times. Skipping this segment...")
+               logging.info("FATAL: Query at position: " + offset + " has failed 4 times. Skipping this segment...")
                offset = offset + limit
             else:
-               print "retrying query due to read failure"
+               logging.info("retrying query due to read failure")
   
          requestUrl = 'https://' + snowServerDict["server"] + '/api/now/table/cmdb_rel_ci?sysparm_limit=' + str(limit) + '&sysparm_offset=' + str(offset) + '&sysparm_query=parent.sys_class_name%20IN%20' + classesOfInterest
-         print("issuing query: " + requestUrl)
+         logging.info("issuing query: " + requestUrl)
      
          for retry in [1,2,3]:
             try:
@@ -716,32 +770,31 @@ def getCiRelationships(classesOfInterest):
                break
          
             except (IOError, IncompleteRead), e:
-               print 'Failed to open "%s".' % requestUrl
+               logging.info('Failed to open "%s".' % requestUrl)
                if hasattr(e, 'code'):
-                  print 'We failed with error code - %s.' % e.code
+                  logging.info('We failed with error code - %s.' % e.code)
                elif hasattr(e, 'reason'):
-                  print "The error object has the following 'reason' attribute :"
-                  print e.reason
-                  print "This usually means the server doesn't exist,",
-                  print "is down, or we don't have an internet connection."
+                  logging.info("The error object has the following 'reason' attribute :")
+                  logging.info(e.reason)
+                  logging.info("This usually means the server doesn't exist, is down, or we have no network connection.")
                else:
-                  print("ERROR: Unable to read from URL: " + requestUrl)
+                  logging.info("ERROR: Unable to read from URL: " + requestUrl)
                if(retry == 3):
-                  print("FATAL: READ ERROR AFTER 3 TRIES: ABORTING READ")
-                  print("Aborted URL: " + requestUrl)
+                  logging.info("FATAL: READ ERROR AFTER 3 TRIES: ABORTING READ")
+                  logging.info("Aborted URL: " + requestUrl)
                   exit()
 
          try:
             relEntries = json.loads(relDataResult)
             retryQuery = 0
          except ValueError:
-            print("ERROR: JSON parsing failed. Retrying query")
+            logging.info("ERROR: JSON parsing failed. Retrying query")
             retryQuery = retryQuery + 1
 
          if(retryQuery == 0):          # Successful read/load. No need to retry
 
             if(writeToFile):
-               print "Saving " + str(len(relEntries["result"])) + " relationship items to file for future load"
+               logging.info("Saving " + str(len(relEntries["result"])) + " relationship items to file for future load")
                if(relPass == 1):
                   text_file = open(mediatorHome + "/log/ciRelationships.json", "w")
                else:
@@ -755,34 +808,69 @@ def getCiRelationships(classesOfInterest):
    
             # retry short read - if ServiceNow API returns only a subset of the requested relationships, and we
             # are not at the end of the relationships table, re-read the data chunk
+            # UPDATE: This won't work if there are a large amount of changes to the relationship table 
 
-            if(numRel < limit):
-               if(totalRelationshipsEvaluated <= (totalSnowCmdbRelationships - (limit * 2))):
-                  print("suspected short read... retrying")
-                  #offset = offset + limit
-                  #relPass = relPass + 1
-                  retryQuery = retryQuery + 1
-               else:
-                  totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
-   
-                  print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
-                  for rel in relEntries["result"]:
-                     evaluateRelationship(rel)
-                  isMore = 0
+#            if(numRel < limit):
+#               if(totalRelationshipsEvaluated <= (totalSnowCmdbRelationships - (limit * 2))):
+#                  print("suspected short read... retrying")
+#                  #offset = offset + limit
+#                  #relPass = relPass + 1
+#                  retryQuery = retryQuery + 1
+#               else:
+#                  totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
+#
+#                  print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
+#                  for rel in relEntries["result"]:
+#                     evaluateRelationship(rel)
+#                  isMore = 0
+#            else:
+#               totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
+#
+#               print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
+#               for rel in relEntries["result"]:
+#                  evaluateRelationship(rel)
+#               offset = offset + limit
+#               isMore = 1
+#               relPass = relPass + 1
+#               retryQuery = 0
+#
+ 
+
+#            if(numRel < limit | numRel == 0 ):
+#
+#               totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
+#
+#               print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
+#               for rel in relEntries["result"]:
+#                  evaluateRelationship(rel)
+#               isMore = 0
+#
+#            else:
+#               totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
+#
+#               print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
+#               for rel in relEntries["result"]:
+#                  evaluateRelationship(rel)
+#               offset = offset + limit
+#               isMore = 1
+#               relPass = relPass + 1
+
+            totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
+
+            logging.info("evaluating " + str(len(relEntries["result"])) + " relationships in this pass")
+            for rel in relEntries["result"]:
+               evaluateRelationship(rel)
+            offset = offset + limit
+            relPass = relPass + 1
+            retryQuery = 0
+            if(numRel < limit or numRel == 0 ):
+               isMore = 0
             else:
-               totalRelationshipsEvaluated = totalRelationshipsEvaluated + len(relEntries["result"])
-   
-               print "evaluating " + str(len(relEntries["result"])) + " relationships in this pass"
-               for rel in relEntries["result"]:
-                  evaluateRelationship(rel)
-               offset = offset + limit
                isMore = 1
-               relPass = relPass + 1
-               retryQuery = 0
       
          #print str(numRel) + " items in the cmdb relationships table"
 
-      print "Relationship evaluation complete. Evaluated a total of " + str(totalRelationshipsEvaluated) + " relationships out of an expected " + str(totalSnowCmdbRelationships)
+      logging.info("Relationship evaluation complete. Evaluated a total of " + str(totalRelationshipsEvaluated) + " relationships out of an expected " + str(totalSnowCmdbRelationships))
 
 
 def evaluateRelationship(rel):
@@ -796,8 +884,8 @@ def evaluateRelationship(rel):
    if(isinstance(rel, dict)):
       pass
    else:
-      print("relation passed to evaluateRelationship is not a dictionary. It contains the following:")
-      print(str(rel))
+      logging.info("relation passed to evaluateRelationship is not a dictionary. It contains the following:")
+      logging.info(str(rel))
       return
 
    if(rel.has_key("child") and rel.has_key("parent")):
@@ -821,7 +909,7 @@ def evaluateRelationship(rel):
             if( rel["type"]["value"] in relationshipMappingDict):
                thisRelType = relationshipMappingDict[ rel["type"]["value"] ]
             else:
-               print "unmapped relationship type: " + rel["type"]["value"] + ". Using default 'connectedTo'."
+               logging.info("unmapped relationship type: " + rel["type"]["value"] + ". Using default 'connectedTo'.")
                thisRelType = "connectedTo"
             relationDict = { "_fromUniqueId": rel["parent"]["value"], "_toUniqueId": rel["child"]["value"], "_edgeType": thisRelType }
             relationDict["originalRelSysId"] = rel["type"]["value"]
@@ -902,7 +990,7 @@ def createCiRelationship(sys_id, relationDict, relationDir):
       edgeType = relationshipMappingDict[relationType]
    else:
       edgeType = "connectedTo"
-      print "Unmapped relationship type " + relationType + ", using connectedTo by default" 
+      logging.info("Unmapped relationship type " + relationType + ", using connectedTo by default")
    
    if(relationDir == "inbound"):
       relationDict = { "_fromUniqueId": relationDict["target"]["value"], "_toUniqueId": sys_id, "_edgeType": edgeType}
@@ -972,87 +1060,91 @@ if __name__ == '__main__':
       mediatorHome = extr.group(1)
       #print "Mediator home is: " + mediatorHome
    else:
-      print "FATAL: unable to find mediator home directory. Is it installed properly? bindir = " + mediatorBinDir
+      logging.info("FATAL: unable to find mediator home directory. Is it installed properly? bindir = " + mediatorBinDir)
       exit()
 
    if(os.path.isdir(mediatorHome + "log")):
       logHome = extr.group(1)
+      setupLogging()
    else:
-      print "FATAL: unable to find log directory at " + mediatorHome + "log"
+      logging.info("FATAL: unable to find log directory at " + mediatorHome + "log")
       exit()
 
    if(os.path.isfile(mediatorHome + "/config/snowserver.conf")):
       snowServerDict = loadSnowServer(mediatorHome + "/config/snowserver.conf")
    else:
-      print "FATAL: unable to find ServiceNow server list file " + mediatorHome + "/config/snowserver.conf"
+      logging.info("FATAL: unable to find ServiceNow server list file " + mediatorHome + "/config/snowserver.conf")
       exit()
 
 
    if(os.path.isfile(mediatorHome + "/config/classlist.conf")):
       ciClassList = loadClassList(mediatorHome + "/config/classlist.conf")
    else:
-      print "FATAL: unable to find ServiceNow server list file " + mediatorHome + "/config/snowserver.conf"
+      logging.info("FATAL: unable to find ServiceNow server list file " + mediatorHome + "/config/snowserver.conf")
       exit()
 
    if(os.path.isfile(mediatorHome + "/config/asmserver.conf")):
       asmServerDict = loadAsmServer(mediatorHome + "/config/asmserver.conf")
    else:
-      print "FATAL: unable to find ASM server configuration file " + mediatorHome + "/config/asmserver.conf"
+      logging.info("FATAL: unable to find ASM server configuration file " + mediatorHome + "/config/asmserver.conf")
       exit()
 
    if(os.path.isfile(mediatorHome  + "/config/relationship-mapping.conf")):
       relationshipMapping = loadRelationshipMapping(mediatorHome + "/config/relationship-mapping.conf")
    else:
-      print "FATAL: no relationship mapping file available at " + mediatorHome + "/config/relationship-mapping.conf"
+      logging.info("FATAL: no relationship mapping file available at " + mediatorHome + "/config/relationship-mapping.conf")
 
    if(os.path.isfile(mediatorHome  + "/config/relationships-ignore.conf")):
       relationshipsIgnore = loadRelationshipsIgnore(mediatorHome + "/config/relationships-ignore.conf")
    else:
-      print "No relationships ignore file available at " + mediatorHome + "/config/relationship-mapping.conf"
-      print "Will load all relevant relationships"
+      logging.info("No relationships ignore file available at " + mediatorHome + "/config/relationship-mapping.conf")
+      logging.info("Will load all relevant relationships")
 
    if(os.path.isfile(mediatorHome  + "/config/entitytype-mapping.conf")):
       relationshipMapping = loadEntityTypeMapping(mediatorHome + "/config/entitytype-mapping.conf")
    else:
-      print "FATAL: no entity type mapping file available at " + mediatorHome + "/config/entitytype-mapping.conf"
+      logging.info("FATAL: no entity type mapping file available at " + mediatorHome + "/config/entitytype-mapping.conf")
 
    if(os.path.isfile(mediatorHome  + "/config/getSNOWData.props")):
       configVars = loadProperties(mediatorHome + "/config/getSNOWData.props")
-      print str(configVars)
+      logging.info(str(configVars))
       if 'readCisFromFile' in configVars.keys():
          global readCisFromFile
          readCisFromFile = configVars['readCisFromFile']
          if(readCisFromFile == "1"):
-            print "will read CIs from file if available"
+            logging.info("will read CIs from file if available")
          else:
-            print "will read CIs from ServiceNow REST API"
+            logging.info("will read CIs from ServiceNow REST API")
       else:
-         print "readCisFromFile property not set, defaulting to 0, read from ServiceNow REST API"
+         logging.info("readCisFromFile property not set, defaulting to 0, read from ServiceNow REST API")
          readCisFromFile = 0
+      if 'loggingLevel' in configVars.keys():
+         global loggingLevel
+         loggingLevel = configVars['loggingLevel']
       if 'readRelationshipsFromFile' in configVars.keys():
          global readRelationshipsFromFile
          readRelationshipsFromFile = configVars['readRelationshipsFromFile']
          if(readRelationshipsFromFile == "1"):
-            print "will read relationships from file if available"
+            logging.info("will read relationships from file if available")
          else:
-            print "will read relationships from ServiceNow REST API"
+            logging.info("will read relationships from ServiceNow REST API")
       else:
-         print("readRelationshipsFromFile not in properties file, defaulting to 0, read from ServiceNow REST API")
+         logging.info("readRelationshipsFromFile not in properties file, defaulting to 0, read from ServiceNow REST API")
          readRelationshipsFromFile = 0
       if 'sendToRest' in configVars.keys():
          sendToRest = configVars['sendToRest']
          if(sendToRest == "1"):
             if 'restJobId' in configVars.keys():
-               print "Will write relationships to ASM through the REST API"
+               logging.info("Will write relationships to ASM through the REST API")
                restJobId = configVars['restJobId']
             else:
-               print "Send to REST enabled, but no 'restJobId' specified in the configuration file. Will not send to ASM REST interface"
+               logging.info("Send to REST enabled, but no 'restJobId' specified in the configuration file. Will not send to ASM REST interface")
                sendToRest = 0
       else:
          sendToRest = 0
 
    else:
-      print "FATAL: unable to find the properties file " + mediatorHome + "/config/getSNOWData.props"
+      logging.info("FATAL: unable to find the properties file " + mediatorHome + "/config/getSNOWData.props")
 
 #   print("readCisFromFile is: " + str(readCisFromFile))
 #   print("readRelationshipsFromFile is: " + str(readRelationshipsFromFile))
@@ -1067,32 +1159,32 @@ if __name__ == '__main__':
       result = verifyAsmHealth()
       if(result <> 0):
          if(result == 401):
-            print "Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials in the asmserver.conf file."
+            logging.info("Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials in the asmserver.conf file.")
          else:
-            print "ASM server health check failed. Verify ASM is running and available."
-            print "Error code " + str(result)
+            logging.info("ASM server health check failed. Verify ASM is running and available.")
+            logging.info("Error code " + str(result))
          exit()
    
       result = checkAsmRestListenJob(restJobId)
       if(result == 200 or result == 0):
-         print "REST job already exists, deleting"
+         logging.info("REST job already exists, deleting")
          result = deleteAsmRestListenJob(restJobId)
          if(result <> 0):
-            print "Error removing existing REST listen job: " + restJobId
+            logging.info("Error removing existing REST listen job: " + restJobId)
             exit()
       elif(result == 401):
-         print "Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials"
+         logging.info("Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials")
          exit()
    
       result = createAsmRestListenJob(restJobId)
       if(result == 0):
-         print "Successfully created REST listen job"
+         logging.info("Successfully created REST listen job")
       else:
-         print "FAIL: unable to create REST listen job"
+         logging.info("FAIL: unable to create REST listen job")
          if(result == 401):
-            print "Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials"
+            logging.info("Unable to access ASM (Error 401: Unauthorized). Verify ASM server credentials")
          else:
-            print "Exit code is: " + str(result)
+            logging.info("Exit code is: " + str(result))
          exit()
 
    ############################################################################
@@ -1102,13 +1194,13 @@ if __name__ == '__main__':
    ############################################################################
 
    startTime=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-   print("Start time: " + startTime)
+   logging.info(("Start time: " + startTime))
    for className in ciClassList:
-      print "querying SNOW for all CIs of type " + className
+      logging.info("querying SNOW for all CIs of type " + className)
       getCiData("pre", className)
 
-   print "CI mediation complete. Writing vertices file..."   
-   vertices = open(mediatorHome + "/file-observer-files/vertices-" + str(datetime.datetime.now()) + ".json", "w")
+   logging.info("CI mediation complete. Writing vertices file..."   )
+   vertices = open(mediatorHome + "/file-observer-files/vertices-" + str(datetime.datetime.now()).replace(' ', '__') + ".json", "w")
    for ci in ciList:
       ci_text = json.dumps(ci)
       vertices.write("V:" + ci_text + "\n" + "W:5 millisecond" + "\n")
@@ -1116,7 +1208,7 @@ if __name__ == '__main__':
    vertices.close()
    totalCi = len(ciList)
    if(sendToRest == "1"):
-      print "Sending ci's to the ASM REST interface..."
+      logging.info("Sending ci's to the ASM REST interface...")
       for ci in ciList:
          createAsmResource(ci, restJobId)
    del ciList
@@ -1131,57 +1223,58 @@ if __name__ == '__main__':
    #
    ###################################################################################################################################
 
-   print "Loading and evaluating relationship table"
+   logging.info("Loading and evaluating relationship table")
 
-   if(readRelationshipsFromFile == "0"):
-      totalSnowCmdbRelationships = getTotalRelCount()
 
    classRelFilter=''
    for className in ciClassList:
       classRelFilter = classRelFilter + className + ","
    classesOfInterest=classRelFilter.rstrip(',')
 
-   print "Running relationship query for classes: " + classesOfInterest
+   if(readRelationshipsFromFile == "0"):
+      totalSnowCmdbRelationships = getTotalRelCount(classesOfInterest)
+
+   logging.info("Running relationship query for classes: " + classesOfInterest)
 
    getCiRelationships(classesOfInterest)
    
-   print "Relationship mediation complete. Writing edges..."   
-   edges = open(mediatorHome + "/file-observer-files/edges-" + str(datetime.datetime.now()) + ".json", "w")
+   logging.info("Relationship mediation complete. Writing edges..."   )
+   edges = open(mediatorHome + "/file-observer-files/edges-" + str(datetime.datetime.now()).replace(' ', '__') + ".json", "w")
    for rel in relationList:
       ci_text = json.dumps(rel)
       edges.write("E:" + ci_text + "\n" + "W:5 millisecond" + "\n")
       edges.flush()
    totalRelation = len(relationList)
    if(sendToRest == "1"):
-      print "Sending relationships to the ASM REST interface..."
+      logging.info("Sending relationships to the ASM REST interface...")
       for rel in relationList:
          createAsmConnection(rel, restJobId)
    del relationList
    gc.collect()
    edges.close()
       
-   print "Mediation complete."
-   print "Number of CIs: " + str(totalCi)
-   print "Number of Relations: " + str(totalRelation)
-   print "Mediation started at: " + startTime
-   print("Mediation completed at: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-   print "Unique CI classes found: "
+   logging.info("Mediation complete.")
+   logging.info("Number of CIs: " + str(totalCi))
+   logging.info("Number of Relations: " + str(totalRelation))
+   logging.info("Mediation started at: " + startTime)
+   logging.info("Mediation completed at: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+   logging.info("Unique CI classes found: ")
    for className in uniqueClasses:
-      print className
+      logging.info(className)
 
-   print "Unique relation types:"
+   logging.info("Unique relation types:")
    for relType in relTypeSet:
-      print relType
+      logging.info(relType)
       
-   print "all done"
+   logging.info("all done")
 
    exit()
 
    # debug info
 
    for ci in ciList:
-      print ci["name"]
-      print "======================="
+      logging.debug(ci["name"])
+      logging.debug("=======================")
    exit()
 
 
